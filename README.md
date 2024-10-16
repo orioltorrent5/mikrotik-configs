@@ -11,5 +11,5 @@ The disvantatge is that when you implement this auto backup, it is necessary to 
 #### **Backups_Centralized_with_Ubuntu**
 Description: This directory contains a configuration to implement more complex auto backups for Mikrotik.
 
-- In this repo, use an Ubuntu server to execute bash code to carry out all backups of Mikrotik.
+In this repo, use an Ubuntu server to execute bash code to carry out all backups of Mikrotik.
 The advantage of this code is that the process is centralized, and I don't need implementation of this for all Mikrotik; you only need implementation on the Ubuntu Server.
