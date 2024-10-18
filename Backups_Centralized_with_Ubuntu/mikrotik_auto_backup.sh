@@ -162,5 +162,5 @@ SUBJECT="Backups Mikrotiks $DATA || Errors: $ERR Successfully: $OK Total: $TOTAL
 
 # Send the mail using mailx with without HTML
 # TODO: Include html conent attach file and change content type is not compatible with mailx.
-cat $CORREU | mail -r "mikrotik@indaleccius.com" -A $zipfile -s "$SUBJECT" $sendmail
+cat $CORREU | mail -r "from@example.com" -A $zipfile -s "$SUBJECT" $sendmail
 
