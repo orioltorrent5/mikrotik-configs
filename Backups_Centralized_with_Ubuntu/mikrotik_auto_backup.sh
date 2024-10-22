@@ -2,19 +2,17 @@
 # Script to automate backups for Mikrotiks
 
 config_mikrotik='./info_mikrotik.csv' # Files wiht mikrotik information
-MTBACKUPDIR='/home/indaleccius/backup_mikrotiks/backups' # Local directory where save backup files
+MTBACKUPDIR='/home/example' # Local directory where save backup files
 DATA=$(date +%Y-%m-%d)
 sshlog="/var/log/mikrotik/mikrotickSSHlog_$DATA.log"
 CORREU="/var/log/mikrotik/mikrotiksbck_$DATA.log" # Save content of the mail
-#sendmail="mikrotik@indaleccius.com tecnics@indaleccius.com"
-sendmail="example@mail.com"
+sendmail="examplemail.com"
 regexdyn='^[a-zA-Z0-9]{12}\.sn\.mynetname\.net$'	# mikrotik dyn dns
 regexip='^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$' # check if ip is valid
-zipfile="/home/indaleccius/backup_mikrotiks/BackupMikrotik.zip" # Path of the zip file
+zipfile="/home/example/file.zip" # Path of the zip file
 OK=0
 ERR=0
 TOTAL=0
-status="OK"
 
 # Read config file line by line
 first_line=true;
@@ -27,8 +25,9 @@ fi
 echo "BACKUPS MIKROTIK USERS - $(date)" >> $CORREU
 echo "" >> $CORREU
 
-while IFS= read -r line
+while IFS= read -r line;
 do
+	status="OK"
 	count_line=$((count_line + 1));
 	if $first_line; then
 		first_line=false
@@ -37,37 +36,43 @@ do
 		if [[ $(echo $line | cut -c 1) != "#" ]];then
 
 			#Save the info of line.
-			ip=$(echo $line | awk -F "," '{print $1}')
-			user=$(echo $line | awk -F "," '{print $2}')
-			passwd=$(echo $line | awk -F "," '{print $3}')
+			group=$(echo $line | awk -F "," '{print $1}')
+			ip=$(echo $line | awk -F "," '{print $2}')
+			user=$(echo $line | awk -F "," '{print $3}')
+			passwd=$(echo $line | awk -F "," '{print $5}')
 			client=$(echo $line | awk -F "," '{print $4}')
-			port=$(echo $line | awk -F "," '{print $5}' | sed 's/[^0-9]//g')
+			port=$(echo $line | awk -F "," '{print $6}' | sed 's/[^0-9]//g')
 			client_not_space=$(echo $line | awk -F "," '{print $4}' | sed 's/ //g')
-
+			echo "$ip"
+			echo "$group"
+			echo "$client"
+			echo "$user"
+			echo "$passwd"
+			echo "$port"
 			# Detect errors of the file and alert in the mail
 			if [ -z "$client" ];then
 				echo "Line $count_line is NOT well done (Client: $client/IP: $ip/Port: $port) - Error in client: $client" >> $CORREU
-				exit 1
+				continue;
 			fi
 
 			if [ -z $ip ]; then
 				echo "Line $count_line is NOT well done (Client: $client/IP: $ip/Port: $port) - Error in ip: $ip" >> $CORREU
-				exit 1
+				continue;
 			fi
 
 			if ! [[ $ip =~ $regexip || $ip =~ $regexdyn ]]; then
 				echo "Line $count_line is NOT well done (Client: $client/IP: $ip/Port: $port) - Error in ip: $ip" >> $CORREU
-				exit 1
+				continue;
 			fi
 
 			if [ -z $passwd ];then
 				echo "Line $count_line is NOT well done (Client: $client/IP: $ip/Port: $port) - Error in passwd: $passwd" >> $CORREU
-				exit 1
+				continue;
 			fi
 
 			if ! [[ $port =~ ^[0-9]{1,5}$ || -z $port ]]; then
 				echo "Line $count_line is NOT well done (Client: $client/IP: $ip/Port: $port) - Error in port: $port" >> $CORREU
-				exit 1
+				continue;
 			fi
 
 			# Create subdirectory for device if the direcotry doesn't exist.
@@ -93,9 +98,9 @@ do
 
 			if [ "$loss" == '0%' ]; then
 
-				echo "Curry out client: $client"
+				echo "Realitzant backup: $client"
 				# .RSC Backup
-				sshpass -p $passwd ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 $port $user@$ip export file=backupfile > $sshlog
+				sshpass -p $passwd ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 $port $user@$ip export file=backupfile < /dev/null > $sshlog
                 		sleep 3
 				if [ $? -ne 0 ]; then
         				echo "Failed to create RSC backup for $client" >> "$sshlog"
@@ -103,7 +108,7 @@ do
     				fi
 
                 		# .BACKUP File
-                		sshpass -p $passwd ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 $port $user@$ip system backup save name=backupfile > $sshlog
+                		sshpass -p $passwd ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 $port $user@$ip system backup save name=backupfile < /dev/null > $sshlog
                 		sleep 3
 	                        if [ $? -ne 0 ]; then
                                         echo "Failed to create system backup for $client" >> "$sshlog"
@@ -112,27 +117,27 @@ do
 
 
                 		# Transfer files on local machine with scp.
-                		sshpass -p $passwd scp $port_scp $user@$ip:/backupfile.rsc $MTBACKUPDIR/$client_not_space/ > $sshlog
+                		sshpass -p $passwd scp $port_scp $user@$ip:/backupfile.rsc $MTBACKUPDIR/$client_not_space/ < /dev/null > $sshlog
 				if [ $? -ne 0 ]; then
         				echo "Failed to transfer RSC file for $client" >> "$sshlog"
         				status="ERROR"
     				fi
 
-               	 		sshpass -p $passwd scp $port_scp $user@$ip:/backupfile.backup $MTBACKUPDIR/$client_not_space/ > $sshlog
+               	 		sshpass -p $passwd scp $port_scp $user@$ip:/backupfile.backup $MTBACKUPDIR/$client_not_space/ < /dev/null > $sshlog
 				if [ $? -ne 0 ]; then
         				echo "Failed to transfer backup file for $client" >> "$sshlog"
         				status="ERROR"
     				fi
 
                 		# Delete files of Mikrotik.
-                		sshpass -p $passwd ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 $port $user@$ip rm backupfile.rsc backupfile.backup > $sshlog
+                		sshpass -p $passwd ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 $port $user@$ip rm backupfile.rsc backupfile.backup < /dev/null > $sshlog
 
 				if [ $? -ne 0 ]; then
 					echo "Failed to delete backup files on Mikrotik for $client" >> "$sshlog"
 					status="ERROR"
 				fi
 
-				if [ "$status" == 'OK' ]; then
+				if [ $status == 'OK' ]; then
 					echo -e "$TOTAL- $client --> OK" >> "$CORREU"
 					OK=$(($OK+1))
 				else
@@ -143,10 +148,15 @@ do
 
 			else
 				echo -e "$client ERROR => Is not possible carry out ping to $ip"
+				echo -e "Group is => $group (No Acces is normal no ping)"
+				echo -e "$TOTAL- $client --> ERROR" >> "$CORREU"
 				ERR=$(($ERR+1))
+				TOTAL=$(($TOTAL+1))
 			fi
+			echo "--------------------------------"
 		fi
 	fi
+	echo "Finished processing line $count_line"  # Afegir missatge de depuració
 done < "$config_mikrotik"
 
 # Create ZIP for send in mail.
@@ -162,5 +172,5 @@ SUBJECT="Backups Mikrotiks $DATA || Errors: $ERR Successfully: $OK Total: $TOTAL
 
 # Send the mail using mailx with without HTML
 # TODO: Include html conent attach file and change content type is not compatible with mailx.
-cat $CORREU | mail -r "from@example.com" -A $zipfile -s "$SUBJECT" $sendmail
+cat $CORREU | mail -r "example@mail.com" -A $zipfile -s "$SUBJECT" $sendmail
 
