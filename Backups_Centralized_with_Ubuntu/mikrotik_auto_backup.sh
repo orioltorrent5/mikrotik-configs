@@ -1,15 +1,15 @@
 #!/bin/bash
 # Script to automate backups for Mikrotiks
 
-config_mikrotik='./info_mikrotik.csv' # Files wiht mikrotik information
-MTBACKUPDIR='/home/example' # Local directory where save backup files
+config_mikrotik='/home/indaleccius/backup_mikrotiks/info_mikrotik_test.csv' # Files wiht mikrotik information
+MTBACKUPDIR='/example/backups' # Local directory where save backup files
 DATA=$(date +%Y-%m-%d)
 sshlog="/var/log/mikrotik/mikrotickSSHlog_$DATA.log"
 CORREU="/var/log/mikrotik/mikrotiksbck_$DATA.log" # Save content of the mail
-sendmail="examplemail.com"
+sendmail="example@mail.com example@mail.com"
 regexdyn='^[a-zA-Z0-9]{12}\.sn\.mynetname\.net$'	# mikrotik dyn dns
 regexip='^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$' # check if ip is valid
-zipfile="/home/example/file.zip" # Path of the zip file
+zipfile="/example/BackupMikrotik.zip" # Path of the zip file
 OK=0
 ERR=0
 TOTAL=0
@@ -42,6 +42,7 @@ do
 			passwd=$(echo $line | awk -F "," '{print $5}')
 			client=$(echo $line | awk -F "," '{print $4}')
 			port=$(echo $line | awk -F "," '{print $6}' | sed 's/[^0-9]//g')
+			noping=$(echo $line | awk -F "," '{print $7}')
 			client_not_space=$(echo $line | awk -F "," '{print $4}' | sed 's/ //g')
 			echo "$ip"
 			echo "$group"
@@ -49,6 +50,7 @@ do
 			echo "$user"
 			echo "$passwd"
 			echo "$port"
+			echo "$noping"
 			# Detect errors of the file and alert in the mail
 			if [ -z "$client" ];then
 				echo "Line $count_line is NOT well done (Client: $client/IP: $ip/Port: $port) - Error in client: $client" >> $CORREU
@@ -87,6 +89,13 @@ do
 			# Get loss % result of the ping command
 			loss=$($cmd | grep "loss" | cut -d "," -f3 | cut -d " " -f2)
 
+			# if not realize pings becouse is block then check this otpion
+			if [ -z "$noping" ];then
+				noping=""
+			else
+				noping="noping"
+			fi
+
 			# In case of the port is null, then don't use any port. Command ssh use default port 22.
 			if [ -z "$port" ];then
 				port=""
@@ -96,11 +105,11 @@ do
 				port=$(echo -p $port)
 			fi
 
-			if [ "$loss" == '0%' ]; then
+			if [[ "$loss" == '0%' || "$noping" == "noping" ]]; then
 
 				echo "Realitzant backup: $client"
 				# .RSC Backup
-				sshpass -p $passwd ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 $port $user@$ip export file=backupfile < /dev/null > $sshlog
+				sshpass -p $passwd ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 $port $user@$ip export file=backupfile < /dev/null > $sshlog
                 		sleep 3
 				if [ $? -ne 0 ]; then
         				echo "Failed to create RSC backup for $client" >> "$sshlog"
@@ -108,7 +117,7 @@ do
     				fi
 
                 		# .BACKUP File
-                		sshpass -p $passwd ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 $port $user@$ip system backup save name=backupfile < /dev/null > $sshlog
+                		sshpass -p $passwd ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 $port $user@$ip system backup save name=backupfile < /dev/null > $sshlog
                 		sleep 3
 	                        if [ $? -ne 0 ]; then
                                         echo "Failed to create system backup for $client" >> "$sshlog"
@@ -130,7 +139,7 @@ do
     				fi
 
                 		# Delete files of Mikrotik.
-                		sshpass -p $passwd ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 $port $user@$ip rm backupfile.rsc backupfile.backup < /dev/null > $sshlog
+                		sshpass -p $passwd ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 $port $user@$ip rm backupfile.rsc backupfile.backup < /dev/null > $sshlog
 
 				if [ $? -ne 0 ]; then
 					echo "Failed to delete backup files on Mikrotik for $client" >> "$sshlog"
@@ -172,5 +181,4 @@ SUBJECT="Backups Mikrotiks $DATA || Errors: $ERR Successfully: $OK Total: $TOTAL
 
 # Send the mail using mailx with without HTML
 # TODO: Include html conent attach file and change content type is not compatible with mailx.
-cat $CORREU | mail -r "example@mail.com" -A $zipfile -s "$SUBJECT" $sendmail
-
+cat $CORREU | mail -r "example@example.com" -A $zipfile -s "$SUBJECT" $sendmail
